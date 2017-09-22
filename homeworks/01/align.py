@@ -1,6 +1,6 @@
 # coding: utf-8
 import numpy as np
-from skimage.transform import resize
+from skimage.transform import resize, rescale
 
 
 def process_origin(origin):
@@ -11,7 +11,7 @@ def process_origin(origin):
     channels = [origin[border_h: height // 3-border_h, border_w:-border_w],
                 origin[height // 3+border_h: height // 3 * 2-border_h, border_w:-border_w],
                 origin[height // 3 * 2+border_h: height // 3 * 3-border_h, border_w:-border_w]]
-    return channels
+    return np.array(channels).transpose(1, 2, 0)
 
 # In[4]:
 
@@ -84,20 +84,20 @@ def pyramid(img_big, g_coord, metric):
     g_row, g_col = g_coord
     ratio = 1
     min_size = 500
-    while img_big[0].shape[0] // ratio >= min_size or img_big[0].shape[1] // ratio >= min_size:
+    while img_big.shape[0] // ratio >= min_size or img_big.shape[1] // ratio >= min_size:
         ratio *= 2
 
     maxx01 = maxy01 = maxx02 = maxy02 = maxx12 = maxy12 = 15
     minx01 = miny01 = minx02 = miny02 = minx12 = miny12 = -15
     while ratio >= 1:
         if ratio > 1:
-            img = [resize(img_big[i], (img_big[i].shape[0] // ratio, img_big[i].shape[1] // ratio))
-                   for i in range(3)]
+            img = rescale(img_big, 1 / ratio)
         else:
             img = img_big
-        shifts01, val2 = find_optimal_shift(img[0], img[1], metric, (minx01, maxx01, miny01, maxy01))
-        shifts02, val1 = find_optimal_shift(img[0], img[2], metric, (minx02, maxx02, miny02, maxy02))
-        shifts12, val0 = find_optimal_shift(img[1], img[2], metric, (minx12, maxx12, miny12, maxy12))
+        # ch0, ch1, ch2 = img[:,:,0], img[:,:,1], img[:,:,2]
+        shifts01, val2 = find_optimal_shift(img[:,:,0], img[:,:,1], metric, (minx01, maxx01, miny01, maxy01))
+        shifts02, val1 = find_optimal_shift(img[:,:,0], img[:,:,2], metric, (minx02, maxx02, miny02, maxy02))
+        shifts12, val0 = find_optimal_shift(img[:,:,1], img[:,:,2], metric, (minx12, maxx12, miny12, maxy12))
         a = 1
         ratio //= 2
         r = 2
