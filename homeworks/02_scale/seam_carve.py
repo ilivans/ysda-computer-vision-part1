@@ -2,9 +2,13 @@
 import numpy as np
 import cv2
 
+def brightness_channel(bgr):
+    bgr = bgr.astype(np.float32)
+    return 0.299 * bgr[:,:,2] + 0.587 * bgr[:,:,1] + 0.114 * bgr[:,:,0]
 
 def energy(img):
-    brightness = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)[:,:,0].astype(np.float32)
+    # brightness = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)[:,:,0].astype(np.float32)
+    brightness = brightness_channel(img)
     derivative_x = np.vstack((brightness[1:2] - brightness[:1],
                               brightness[2:] - brightness[:-2],
                               brightness[-1:] - brightness[-2:-1]))
