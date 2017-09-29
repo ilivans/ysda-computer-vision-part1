@@ -1,24 +1,21 @@
 # coding: utf-8
 import numpy as np
-import cv2
+
 
 def brightness_channel(bgr):
-    bgr = bgr.astype(np.float32)
-    return 0.299 * bgr[:,:,2] + 0.587 * bgr[:,:,1] + 0.114 * bgr[:,:,0]
+    bgr = bgr.astype(np.float64)
+    return 0.299 * bgr[:,:,0] + 0.587 * bgr[:,:,1] + 0.114 * bgr[:,:,2]
 
 def energy(img):
-    # brightness = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)[:,:,0].astype(np.float32)
+    # brightness = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)[:,:,0].astype(np.float64)
     brightness = brightness_channel(img)
-    derivative_x = np.vstack((brightness[1:2] - brightness[:1],
-                              brightness[2:] - brightness[:-2],
-                              brightness[-1:] - brightness[-2:-1]))
-    derivative_y = np.hstack((brightness[:,1:2] - brightness[:,:1],
-                              brightness[:,2:] - brightness[:,:-2],
-                              brightness[:,-1:] - brightness[:,-2:-1]))
+    derivative_x = np.concatenate((brightness[1:2] - brightness[:1],
+                                   brightness[2:] - brightness[:-2],
+                                   brightness[-1:] - brightness[-2:-1]), axis=0)
+    derivative_y = np.concatenate((brightness[:,1:2] - brightness[:,:1],
+                                   brightness[:,2:] - brightness[:,:-2],
+                                   brightness[:,-1:] - brightness[:,-2:-1]), axis=1)
     return np.sqrt(derivative_x ** 2 + derivative_y ** 2)
-
-
-# In[120]:
 
 
 def seam_carve(img, mode="horizontal shrink", mask=None):
@@ -27,7 +24,7 @@ def seam_carve(img, mode="horizontal shrink", mask=None):
         img = img.transpose(1, 0, 2)
         if mask is not None:
             mask = mask.transpose(1, 0)
-    
+
     cum = energy(img)
     if mask is not None:
         delta = mask.shape[0] * mask.shape[1] * 256
@@ -35,13 +32,11 @@ def seam_carve(img, mode="horizontal shrink", mask=None):
         cum[mask == -1] -= delta
         mask = list(mask)
     for i in range(1, cum.shape[0]):
-        for j in range(1, cum.shape[1] - 1):
-            cum[i, j] += np.min(cum[i - 1, j - 1: j + 2])
-        cum[i, 0] += np.min(cum[i - 1, :2])
-        cum[i, -1] += np.min(cum[i - 1, -2:])
-    
+        for j in range(cum.shape[1]):
+            cum[i, j] += np.min(cum[i - 1, max(0, j - 1): min(j + 2, cum.shape[1] - 1)])
+
     # Build and carve seam simultaneously
-    seam = []
+    seam = np.zeros(img.shape[:2])
     seam_y = np.argmin(cum[-1])
     img = list(img)
     if action == "shrink":
@@ -58,15 +53,16 @@ def seam_carve(img, mode="horizontal shrink", mask=None):
                                        mask[-1][seam_y: seam_y + 2].mean(axis=0).reshape(1,).astype(mask[-1].dtype),
                                        mask[-1][seam_y + 1:]),
                                       axis=0)
-    seam.append(np.zeros_like(img[-1][:,0], dtype=np.uint8))
-    seam[-1][min(seam_y, seam[-1].shape[0] - 1)] = 1
-        
+    seam[-1, seam_y] = 1
+
     for i in range(cum.shape[0] - 2, -1, -1):
+        # if mask is not None and action == "shrink" and direction == "vertical":
+        #     print(i, seam_y, cum[i, max(0, seam_y - 1): min(cum.shape[1], seam_y + 2)])
         seam_y = np.argmin(cum[i, max(0, seam_y - 1): min(cum.shape[1], seam_y + 2)]) + max(0, seam_y - 1)
+        # if mask is not None and action == "shrink" and direction == "vertical":
+        #     print(seam_y)
         if action == "shrink":
-            img[i] = np.concatenate((img[i][:seam_y],
-                                     img[i][seam_y + 1:]),
-                                    axis=0)
+            img[i] = np.concatenate((img[i][:seam_y], img[i][seam_y + 1:]), axis=0)
             if mask is not None:
                 mask[i] = np.concatenate((mask[i][:seam_y], mask[i][seam_y + 1:]), axis=0)
         else:
@@ -79,14 +75,12 @@ def seam_carve(img, mode="horizontal shrink", mask=None):
                                           mask[i][seam_y: seam_y + 2].mean(axis=0).reshape(1, ).astype(mask[i].dtype),
                                           mask[i][seam_y + 1:]),
                                          axis=0)
-        seam.append(np.zeros_like(img[i][:,0], dtype=np.uint8))
-        seam[-1][min(seam_y, seam[-1].shape[0] - 1)] = 1
+        seam[i, seam_y] = 1
 
     img = np.array(img)
     if mask is not None:
         mask = np.array(mask)
-    seam = np.array(seam[::-1])
-        
+
     if direction == "vertical":
         img = img.transpose(1, 0, 2)
         if mask is not None:

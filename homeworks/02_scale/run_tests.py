@@ -12,6 +12,8 @@ def check_test(output_dir, gt_dir):
         for i in range(8):
             if load(fout) == load(fgt):
                 correct += 1
+            else:
+                print(i)
     return 'Ok %d/8' % correct
 
 
@@ -37,7 +39,7 @@ def run_single_test(data_dir, output_dir):
     def get_seam_coords(seam_mask):
         coords = where(seam_mask)
         t = [i for i in zip(coords[0], coords[1])]
-        t.sort(key=lambda i: i[0])
+        t.sort(key=lambda i: i)
         return tuple(t)
 
     def convert_img_to_mask(img):
